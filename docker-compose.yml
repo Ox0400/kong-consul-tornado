@@ -1,0 +1,96 @@
+version: '3.5'
+services:
+  consul:
+    image: consul
+    ports:
+      - "8500:8500" ## consul UI page
+      - "8600:8600" ## consul DNS resolver.(like 53)
+    # network_mode: host
+    environment:
+      #- CONSUL_LOCAL_CONFIG={"addresses":{"dns":"127.0.0.1","http":"0.0.0.0"}}
+      - CONSUL_LOCAL_CONFIG={"addresses":{"dns":"0.0.0.0","http":"0.0.0.0"}}
+  web1:
+    image: 0x0400/tornado-with-consul
+    environment:
+      - SERVICE_NAME=$SERVICE_NAME
+      - CONSUL_HOST=$HOST_MACHINE_IP
+    networks:
+      default:
+        aliases:
+          - web
+    depends_on:
+      - consul
+  web2:
+    image: 0x0400/tornado-with-consul
+    environment:
+      - SERVICE_NAME=$SERVICE_NAME
+      - CONSUL_HOST=$HOST_MACHINE_IP
+    networks:
+      default:
+        aliases:
+          - web
+    depends_on:
+      - consul
+
+  setup:
+    image: kong/kong-gateway:2.6.0.0-alpine
+    environment:
+      - KONG_PASSWORD=stratifyd
+      - KONG_DATABASE=postgres
+      - KONG_PG_HOST=$HOST_MACHINE_IP
+      - KONG_PG_PORT=5433
+      - KONG_PG_PASSWORD=zhipeng
+      - KONG_PG_USER=zhipeng
+      #- KONG_DNS_RESOLVER=$HOST_MACHINE_IP:8600
+      # - KONG_CASSANDRA_CONTACT_POINTS=$HOST_MACHINE_IP
+    entrypoint: "kong migrations bootstrap > /log/kong_setup"
+    stdin_open: true
+    tty: true
+    depends_on:
+      - pgsql
+    links:
+      - pgsql
+  kong:
+    image: kong/kong-gateway:2.6.0.0-alpine
+    environment:
+      - KONG_PROXY_ACCESS_LOG=/dev/stdout
+      - KONG_ADMIN_ACCESS_LOG=/dev/stdout
+      - KONG_PROXY_ERROR_LOG=/dev/stderr
+      - KONG_ADMIN_ERROR_LOG=/dev/stderr
+      - KONG_ADMIN_LISTEN=0.0.0.0:8001
+      - KONG_ADMIN_GUI_LISTEN=0.0.0.0:8002
+      - KONG_ADMIN_GUI_URL=http://34.222.253.151:8002 # for Access-Control-Allow-Origin
+      # dns resolver need container ip require. https://github.com/moby/moby/issues/11998
+      # dig @172.31.36.146  -p 8600 web.service.dc1.consul.
+      #- KONG_DNS_RESOLVER=consul:8600 ## consul dns address. kong removed dnsmasq, not support hostname
+      # - KONG_DNS_RESOLVER=$HOST_MACHINE_IP:8600
+      - KONG_DNS_RESOLVER=$CONSUL_DNS_RESLOVER
+      #- KONG_DNS_ORDER=A,CNAME,LAST,SRV
+      - KONG_PASSWORD=stratifyd
+      - KONG_DATABASE=postgres
+      - KONG_PG_HOST=$HOST_MACHINE_IP
+      - KONG_PG_PORT=5433
+      - KONG_PG_PASSWORD=zhipeng
+      - KONG_PG_USER=zhipeng
+      - KONG_LOG_LEVEL=debug
+      # - KONG_CASSANDRA_CONTACT_POINTS=$HOST_MACHINE_IP
+    ports:
+      - "8002:8002" ## admin ui page
+      - "8001:8001" ## kong api manager
+      - "8000:8000" ## connect to services with proxy. i.e: http://gateway.stratifyd.com:8000/srv/web.app/
+    stdin_open: true
+    tty: true
+    links:
+      - pgsql
+    depends_on:
+      - pgsql
+      - setup
+
+  pgsql:
+    image: postgres:9.6
+    environment:
+     - POSTGRES_PASSWORD=zhipeng
+     - POSTGRES_USER=zhipeng
+     - POSTGRES_DB=kong
+    ports:
+      - "5433:5432"
