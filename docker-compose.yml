@@ -3,7 +3,7 @@ services:
   consul:
     image: consul
     ports:
-      - "8500:8500" ## consul UI page
+      - "8502:8500" ## consul UI page
       - "8600:8600" ## consul DNS resolver.(like 53)
     # network_mode: host
     environment:
@@ -63,8 +63,8 @@ services:
       # dns resolver need container ip require. https://github.com/moby/moby/issues/11998
       # dig @172.31.36.146  -p 8600 web.service.dc1.consul.
       #- KONG_DNS_RESOLVER=consul:8600 ## consul dns address. kong removed dnsmasq, not support hostname
-      # - KONG_DNS_RESOLVER=$HOST_MACHINE_IP:8600
-      - KONG_DNS_RESOLVER=$CONSUL_DNS_RESLOVER
+      - KONG_DNS_RESOLVER=$HOST_MACHINE_IP:8600
+      #- KONG_DNS_RESOLVER=$CONSUL_LAN_IP
       #- KONG_DNS_ORDER=A,CNAME,LAST,SRV
       - KONG_PASSWORD=stratifyd
       - KONG_DATABASE=postgres

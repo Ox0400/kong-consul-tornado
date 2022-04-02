@@ -2,7 +2,7 @@
 
 #### ports
 ##### consul
-- 8500 for Admin UI page
+- 8502 for Admin UI page
 - 8600 for DNS resolver (like :53)
 ##### web app
 - 8080 target web app http port
@@ -31,6 +31,7 @@ docker-compose up -d setup web1 web2 # start setup for kong & web apps(two insta
 # access consul use container ip. https://github.com/moby/moby/issues/11998
 # suggest deploy consul with host network_mode if want start kong with consul's lan ip.
 # dig @172.31.36.146  -p 8600 web.service.dc1.consul. SRV
+# dig @192.168.240.1  -p 8600 web.service.dc1.consul. A
 export CONSUL_DNS_RESLOVER=$(docker-compose exec consul sh -c 'echo $(hostname -i):8600')
 docker-compose up -d kong # start kong
 
