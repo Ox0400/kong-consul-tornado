@@ -4,16 +4,20 @@ services:
     image: consul
     ports:
       - "8502:8500" ## consul UI page
-      - "8600:8600" ## consul DNS resolver.(like 53)
+      - "8601:8601/udp" ## consul DNS resolver.(like 53)
+      - "8601:8601/tcp" ## consul DNS resolver.(like 53)
     # network_mode: host
     environment:
       #- CONSUL_LOCAL_CONFIG={"addresses":{"dns":"127.0.0.1","http":"0.0.0.0"}}
-      - CONSUL_LOCAL_CONFIG={"addresses":{"dns":"0.0.0.0","http":"0.0.0.0"}}
+      - CONSUL_LOCAL_CONFIG={"addresses":{"dns":"0.0.0.0","http":"0.0.0.0"},"ports":{"dns":8601}}
   web1:
     image: 0x0400/tornado-with-consul
     environment:
-      - SERVICE_NAME=$SERVICE_NAME
+      - SERVICE_NAME=web1
       - CONSUL_HOST=$HOST_MACHINE_IP
+      - CONSUL_PORT=8502
+    deploy:
+        replicas: 2
     networks:
       default:
         aliases:
@@ -23,8 +27,9 @@ services:
   web2:
     image: 0x0400/tornado-with-consul
     environment:
-      - SERVICE_NAME=$SERVICE_NAME
+      - SERVICE_NAME=web2
       - CONSUL_HOST=$HOST_MACHINE_IP
+      - CONSUL_PORT=8502
     networks:
       default:
         aliases:
@@ -41,7 +46,7 @@ services:
       - KONG_PG_PORT=5433
       - KONG_PG_PASSWORD=zhipeng
       - KONG_PG_USER=zhipeng
-      #- KONG_DNS_RESOLVER=$HOST_MACHINE_IP:8600
+      #- KONG_DNS_RESOLVER=$HOST_MACHINE_IP:8601
       # - KONG_CASSANDRA_CONTACT_POINTS=$HOST_MACHINE_IP
     entrypoint: "kong migrations bootstrap > /log/kong_setup"
     stdin_open: true
@@ -59,12 +64,12 @@ services:
       - KONG_ADMIN_ERROR_LOG=/dev/stderr
       - KONG_ADMIN_LISTEN=0.0.0.0:8001
       - KONG_ADMIN_GUI_LISTEN=0.0.0.0:8002
-      - KONG_ADMIN_GUI_URL=http://34.222.253.151:8002 # for Access-Control-Allow-Origin
+      - KONG_ADMIN_GUI_URL=http://$HOST_NET_IP:8002 # for Access-Control-Allow-Origin
       # dns resolver need container ip require. https://github.com/moby/moby/issues/11998
-      # dig @172.31.36.146  -p 8600 web.service.dc1.consul.
+      # dig @172.31.36.146  -p 8601 web.service.dc1.consul.
       #- KONG_DNS_RESOLVER=consul:8600 ## consul dns address. kong removed dnsmasq, not support hostname
-      - KONG_DNS_RESOLVER=$HOST_MACHINE_IP:8600
-      #- KONG_DNS_RESOLVER=$CONSUL_LAN_IP
+      #- KONG_DNS_RESOLVER=$HOST_MACHINE_IP:8601
+      - KONG_DNS_RESOLVER=$CONSUL_LAN_IP:8601
       #- KONG_DNS_ORDER=A,CNAME,LAST,SRV
       - KONG_PASSWORD=stratifyd
       - KONG_DATABASE=postgres
@@ -85,6 +90,7 @@ services:
     depends_on:
       - pgsql
       - setup
+      - consul
 
   pgsql:
     image: postgres:9.6

@@ -18,21 +18,26 @@
 # for dns resolver
 # LAN IP address
 export HOST_MACHINE_IP=172.31.36.146
+export HOST_NET_IP=`curl ip.sb` # could reuse HOST_MACHINE_IP
 # service name
-export SERVICE_NAME=web
+# export SERVICE_NAME=web
 ```
 
 #### start services
 
 ```
-docker-compose up -d consul pgsql # start pgsql & consul
-docker-compose up -d setup web1 web2 # start setup for kong & web apps(two instance)
-# export CONSUL_LAN_IP=`docker-compose exec consul hostname -i`
+# start pgsql & consul
+docker-compose up -d consul pgsql
+
+# start setup for kong & web apps (two instance)
+docker-compose up -d setup web1 web2
+
+# config consul dns resolver address
 # access consul use container ip. https://github.com/moby/moby/issues/11998
 # suggest deploy consul with host network_mode if want start kong with consul's lan ip.
+export CONSUL_LAN_IP=`docker-compose exec consul hostname -i | tr -d '\r'`
 # dig @172.31.36.146  -p 8600 web.service.dc1.consul. SRV
 # dig @192.168.240.1  -p 8600 web.service.dc1.consul. A
-export CONSUL_DNS_RESLOVER=$(docker-compose exec consul sh -c 'echo $(hostname -i):8600')
 docker-compose up -d kong # start kong
 
 ```
@@ -42,22 +47,24 @@ docker-compose up -d kong # start kong
 #### registry test web app, forward request to multi servers
 > `web.service.consul` is consul service name (DNS CNAME). format: `$ServiceName.service.consul`
 
-```
+```bash
 curl "http://$HOST_MACHINE_IP:8001/default/services" \
   -H 'Content-Type: application/json;charset=UTF-8' \
-  --data-raw '{"name":"web-srv","host":"web.service.dc1.consul.", "port": 8080}'
-```
+  --data-raw '{"name":"web1-srv","host":"web1.service.dc1.consul.", "port": 8080}'
+
+```bash
 
 #### set route for web app
-```
-curl "http://$HOST_MACHINE_IP:8001/default/services/web-srv/routes" \
+```bash
+curl "http://$HOST_MACHINE_IP:8001/default/services/web1-srv/routes" \
   -H 'Content-Type: application/json;charset=UTF-8' \
-  --data-raw '{"name":"web-srv-route","protocols":["http","https"],"paths":["/srv/web.app"]}'
+  --data-raw '{"name":"web1-srv-route","protocols":["http","https"],"paths":["/srv/web1.app"]}'
+
 ```
 
 #### test call web app
-```
-curl -X GET   --url http://$HOST_MACHINE_IP:8000/srv/web.app
+```bash
+curl http://$HOST_MACHINE_IP:8000/srv/web1.app
 # Hello, Service: 9dbf4260e86c
 # Hello, Service: 4d3e162d7f9a
 
